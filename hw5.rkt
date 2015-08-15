@@ -1,7 +1,7 @@
 ;; Programming Languages, Homework 5
 
-#lang racket
-(provide (all-defined-out)) ;; so we can put tests in a second file
+;#lang racket
+;(provide (all-defined-out)) ;; so we can put tests in a second file
 
 ;; definition of structures for MUPL programs - Do NOT change
 (struct var  (string) #:transparent)  ;; a variable, e.g., (var "foo")
@@ -23,11 +23,22 @@
 ;; Problem 1
 
 ;; CHANGE (put your solutions here)
+(define (racketlist->mupllist rxs)
+ 	(if (null? rxs)
+	 	(aunit)
+		(apair (car rxs) (racketlist->mupllist (cdr rxs)))))
+
+(define (mupllist->racketlist xs)
+ 	(if (aunit? xs)
+	 	null
+		(cons (apair-e1 xs) (mupllist->racketlist (apair-e2 xs)))))
 
 ;; Problem 2
 
+
 ;; lookup a variable in an environment
 ;; Do NOT change this function
+;; env = '((key1 val1) (key2 val2)...)
 (define (envlookup env str)
   (cond [(null? env) (error "unbound variable during evaluation" str)]
         [(equal? (car (car env)) str) (cdr (car env))]
@@ -48,6 +59,59 @@
                (int (+ (int-num v1) 
                        (int-num v2)))
                (error "MUPL addition applied to non-number")))]
+
+		[(int? e) e]
+
+		[(fun? e) (closure env e)]
+		; (let ([fname (eval-under-env (fun-nameopt e) env)]
+		;	   [fparam (eval-under-env (fun-formal e) env)]
+		;	   [fbody (eval-under-env (fun-body e) env)]
+		;	(cond ([(not (or (var? fname) (boolean? fname))) (error "MUPL function name type error")]
+		;		   [(not (var? fparam) (error "MUPL function parameter type error"))]
+		;		   [#t (fun fname fparam fbody)]))))]
+		[(call? e)
+		 (let* ([c (eval-under-env (call-funexp e) env)]
+				[func (cond ([(closure? c) (closure-fun c)]
+							 [(#t (error "MUPL function return is not a closure"))]))]
+				[arg (eval-under-env (call-actual e))]
+				[env-tmp (cons (cons (fun-formal func) arg) (closure-env c))]
+				[env (cond ([(equal? #f (fun-nameopt func)) env-tmp]
+							[#t (cons (cons (fun-nameopt func) c))]))])
+			(eval-under-env (fun-body func) env))]
+
+		[(ifgreater? e) 
+		 (let ([v1 (eval-under-env (ifgreater-e1 e) env)]
+			   [v2 (eval-under-env (ifgreater-e2 e) env)])
+		 	(if (and (int? v1) (int? v2)) 
+				(if (> v1 v2)
+					(eval-under-env (ifgreater-e3 e) env)
+					(eval-under-env (ifgreater-e4 e) env))
+				(error "MUPL ifgreater applied to non-number")))]
+
+		[(mlet? e)
+		 (let ([var (eval-under-env (mlet-var e) env)]
+			   [val (eval-under-env (mlet-e e) env)])
+		  	(eval-under-env (eval-under-env (mlet-e body) env) (cons (cons var val) env)))]
+
+		[(apair? e) 
+		 (apair (eval-under-env (apair-e1 e) env) (eval-under-env (apair-e2 e) env))]
+  		[(fst? e)
+		 (if (apair? e)
+		 	 (apair-e1 e)
+			 (error "MUPL fst applied to non-apair"))]
+		[(snd? e)
+		 (if (apair? e)
+		  	 (apair-e2 e)
+			 (error "MUPL fst applied to non-apair"))]
+		
+		[(aunit? e) e]
+		[(isaunit? e)
+		 (let ([v (eval-under-env (isaunit-e e) env)])
+		  	(if (isaunit? v) (int 1) (int 0)))]
+
+		[(closure? e) e]
+
+
         ;; CHANGE add more cases here
         [#t (error "bad MUPL expression")]))
 
